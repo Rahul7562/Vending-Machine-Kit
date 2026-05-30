@@ -3,22 +3,15 @@
 module vending_machine_boolean (
     input  wire clk,
     input  wire [6:0] sw,     // Switches for coins and selections
-    input  wire [3:0] btn,    // Buttons (BTN0=rst, BTN3=cancel)
+    input  wire [3:0] btn,    // Buttons (BTN0=rst, BTN3=cancel; BTN1,BTN2=unused)
     output wire [3:0] led,    // LEDs for dispense indicators
-    output wire [2:0] led_rgb, // RGB for FSM state
-    output wire [7:0] seg,    // Seven Segment Data
-    output wire [3:0] an      // Seven Segment Anode
+    output wire [7:0] seg,    // Seven Segment Data (active low, bit 7=DP)
+    output wire [3:0] an      // Seven Segment Anode (active low)
 );
 
-    // Inputs Mapping
-    // SW0 -> coin_5, SW1 -> coin_10, SW2 -> coin_20
-    // SW3 -> Water, SW4 -> Coffee, SW5 -> Soft Drink, SW6 -> Chips
-    // BTN0 -> rst (inverted: active-low button to active-high core reset), BTN3 -> cancel
-    
-    // Boolean board: buttons active LOW (pressed=0), RGB active HIGH
-    // 7-seg scan requires identical anode pattern on both D0+D1 for Real Digital Boolean
-
-    wire rst = ~btn[0]; // Invert active-low button for active-high core reset
+    // Boolean board: buttons active LOW (pressed=0 due to pull-up)
+    // Core uses active-high rst, so invert btn[0]
+    wire rst = ~btn[0];
     wire cancel = btn[3];
 
     wire dispense_water;
@@ -51,8 +44,7 @@ module vending_machine_boolean (
         .state_out(state_out)
     );
 
-    // Latch Dispense for LEDs (Keep LEDs ON so human can see)
-    // Sticky LED logic clears on reset or cancel completion
+    // Sticky LED latch: stays on after 1-cycle dispense pulse
     reg [3:0] led_reg;
     always @(posedge clk) begin
         if (rst || cancel_out) begin
@@ -64,14 +56,7 @@ module vending_machine_boolean (
             if (dispense_chips)     led_reg[3] <= 1'b1;
         end
     end
-    
     assign led = led_reg;
-
-    // RGB Mapping (Active High)
-    // IDLE: Blue (001), DISPENSE/CHANGE: Green (010), CHECK: Red (100)
-    assign led_rgb[0] = (state_out == 3'd0);
-    assign led_rgb[1] = (state_out == 3'd2 || state_out == 3'd3);
-    assign led_rgb[2] = (state_out == 3'd1);
 
     // 7-Segment Display (Multiplexed) — shows current_balance
     reg [15:0] clk_div;
@@ -79,7 +64,7 @@ module vending_machine_boolean (
 
     wire [3:0] digit0 = current_balance % 10;
     wire [3:0] digit1 = (current_balance / 10) % 10;
-    
+
     reg [3:0] current_digit;
     reg [3:0] an_reg;
 
@@ -92,6 +77,7 @@ module vending_machine_boolean (
 
     assign an = an_reg;
 
+    // 7-segment encoding (active low, common anode)
     reg [6:0] seg_reg;
     always @(*) begin
         case (current_digit)
@@ -109,6 +95,6 @@ module vending_machine_boolean (
         endcase
     end
 
-    assign seg = {1'b1, seg_reg}; // DP off, active-low segments
+    assign seg = {1'b1, seg_reg}; // DP off (bit 7 = 1), segments active low
 
 endmodule
