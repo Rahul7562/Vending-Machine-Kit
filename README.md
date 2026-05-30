@@ -1,12 +1,26 @@
 # Vending Machine RTL Design
 
-A fully synthesizable vending machine targeting the Real Digital Boolean FPGA board (XC7S50CSGA324-1).
+Fully synthesizable vending machine for Real Digital Boolean FPGA board (XC7S50CSGA324-1).
 
-## FSM States
-1. `S_IDLE` — Accumulates coins, waits for selection or cancel
-2. `S_CHECK` — Verifies balance >= price
-3. `S_DISPENSE` — Dispenses product (1 cycle), returns change if overpay
-4. `S_RETURN_CHANGE` — Returns balance, resets to IDLE
+## Testbench Signals (self-explanatory)
+
+| Signal | Direction | Description |
+|--------|-----------|-------------|
+| `insert_5` | Input | Insert 5 coin (1 clock pulse) |
+| `insert_10` | Input | Insert 10 coin (1 clock pulse) |
+| `insert_20` | Input | Insert 20 coin (1 clock pulse) |
+| `buy_water` | Input | Press water button (1 clock pulse) |
+| `buy_coffee` | Input | Press coffee button (1 clock pulse) |
+| `buy_softdrink` | Input | Press soft drink button (1 clock pulse) |
+| `buy_chips` | Input | Press chips button (1 clock pulse) |
+| `press_cancel` | Input | Press cancel button (1 clock pulse) |
+| `balance` | Output | Current amount inserted (0-99) |
+| `change_returned` | Output | Change given back (1-cycle pulse) |
+| `water_ready` | Output | Water dispensed (1-cycle pulse) |
+| `coffee_ready` | Output | Coffee dispensed (1-cycle pulse) |
+| `softdrink_ready` | Output | Soft drink dispensed (1-cycle pulse) |
+| `chips_ready` | Output | Chips dispensed (1-cycle pulse) |
+| `state` | Output | FSM state: 0=IDLE,1=CHECK,2=DISPENSE,3=RET_CHANGE |
 
 ## Product Pricing
 | Product | Price |
@@ -16,40 +30,38 @@ A fully synthesizable vending machine targeting the Real Digital Boolean FPGA bo
 | Soft Drink | 20 |
 | Chips | 25 |
 
-## Files
-- `vending_machine_core.v` — Pure RTL FSM core (160 lines)
-- `vending_machine_boolean.v` — Boolean board wrapper with RGB LED + 7-segment display
-- `vending_machine_tb.v` — 12 test cases, all passing
-- `vending_machine_constraints.xdc` — Official Real Digital pin mappings
-
 ## Simulation
 ```bash
 iverilog -o sim.vvp vending_machine_core.v vending_machine_tb.v
 vvp sim.vvp
 ```
 
-## Boolean Board Pin Mapping
+## Files
+- `vending_machine_core.v` — 4-state FSM core (160 lines, unmodified)
+- `vending_machine_boolean.v` — Boolean board wrapper (RGB LED, 7-seg display)
+- `vending_machine_tb.v` — 12 tests, 68 waveform signals, self-explanatory names
+- `vending_machine_constraints.xdc` — Official pin mappings (create_clock, CFGBVS, 38 pins)
+
+## Boolean Board Pins
 | Signal | Pins |
 |--------|------|
-| Clock | F14 (100 MHz) |
-| Switches SW[0..6] | V2, U2, U1, T2, T1, R2, R1 |
-| LEDs LED[0..3] | G1, G2, F1, F2 |
-| RGB LED | V6, V4, U6 |
-| Buttons BTN[0..3] | J2, J5, H2, J1 |
-| 7-Seg D0 anodes | D5, C4, C7, A8 |
-| 7-Seg D0 segments | D7, C5, A5, B7, A7, D6, B5, A6 |
-| 7-Seg D1 anodes | H3, J4, F3, E4 |
-| 7-Seg D1 segments | F4, J3, D2, C2, B1, H4, D1, C1 |
+| Clock | F14 |
+| Switches | V2,U2,U1,T2,T1,R2,R1 |
+| LEDs | G1,G2,F1,F2 |
+| RGB | V6,V4,U6 |
+| Buttons | J2,J1 (BTN0=reset, BTN3=cancel) |
+| 7-Seg D0 | SEG: D7,C5,A5,B7,A7,D6,B5,A6 / AN: D5,C4,C7,A8 |
+| 7-Seg D1 | SEG: F4,J3,D2,C2,B1,H4,D1,C1 / AN: H3,J4,F3,E4 |
 
 ## Test Coverage (12/12 PASS)
-1. Exact: Insert 10, Buy Water
-2. Multi-coin exact: Insert 5+10, Buy Coffee
-3. Exact: Insert 20, Buy Soft Drink
-4. Multi-coin exact: Insert 20+5, Buy Chips
-5. Insufficient: Insert 10, Buy Coffee (rejected)
-6. Insufficient: Insert 20, Buy Chips (rejected)
-7. Overpay: Insert 20, Buy Water (change=10)
-8. Multi-coin: Insert 5x4=20, Buy Soft Drink
-9. Mid-transaction reset
-10. Cancel returns change (=15)
-11. Back-to-back: Buy Water (change=30), re-insert, Buy Chips
+1. Insert 10, buy Water (exact)
+2. Insert 5+10, buy Coffee (exact)
+3. Insert 20, buy Soft Drink (exact)
+4. Insert 20+5, buy Chips (exact)
+5. Insert 10, buy Coffee (reject -- not enough)
+6. Insert 20, buy Chips (reject -- not enough)
+7. Insert 20, buy Water (overpay -- change=10)
+8. Insert 5x4=20, buy Soft Drink (multi-coin)
+9. Insert 10, reset mid-transaction
+10. Insert 5+10, cancel (change=15)
+11. Back-to-back: buy Water then buy Chips
