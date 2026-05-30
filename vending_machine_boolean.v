@@ -3,7 +3,8 @@
 module vending_machine_boolean (
     input  wire clk,
     input  wire [6:0] sw,
-    input  wire [3:0] btn,
+    input  wire btn0,          // BTN0 = reset (active low on board)
+    input  wire btn3,          // BTN3 = cancel (active low on board)
     output wire [3:0] led,
     output wire [2:0] led_rgb,
     output reg  [7:0] D0_SEG,
@@ -12,8 +13,8 @@ module vending_machine_boolean (
     output reg  [3:0] D1_AN
 );
 
-    wire rst = ~btn[0];
-    wire cancel = btn[3];
+    wire rst = ~btn0;
+    wire cancel = btn3;
 
     wire dispense_water, dispense_coffee, dispense_softdrink, dispense_chips;
     wire [7:0] change_out, current_balance;
