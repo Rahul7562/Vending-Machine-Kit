@@ -32,11 +32,11 @@ set_property -dict {PACKAGE_PIN V6  IOSTANDARD LVCMOS33} [get_ports {led_rgb[0]}
 set_property -dict {PACKAGE_PIN V4  IOSTANDARD LVCMOS33} [get_ports {led_rgb[1]}];
 set_property -dict {PACKAGE_PIN U6  IOSTANDARD LVCMOS33} [get_ports {led_rgb[2]}];
 
-## ---------------- Buttons ----------------
-set_property -dict {PACKAGE_PIN J2  IOSTANDARD LVCMOS33} [get_ports {btn[0]}];
-set_property -dict {PACKAGE_PIN J5  IOSTANDARD LVCMOS33} [get_ports {btn[1]}];
-set_property -dict {PACKAGE_PIN H2  IOSTANDARD LVCMOS33} [get_ports {btn[2]}];
-set_property -dict {PACKAGE_PIN J1  IOSTANDARD LVCMOS33} [get_ports {btn[3]}];
+## ---------------- Buttons (only btn0 and btn3 used) ----------------
+set_property -dict {PACKAGE_PIN J2  IOSTANDARD LVCMOS33} [get_ports {btn0}];   # BTN0 = reset
+set_property -dict {PACKAGE_PIN J1  IOSTANDARD LVCMOS33} [get_ports {btn3}];   # BTN3 = cancel
+## BTN1 (J5) and BTN2 (H2) are unused — no constraint needed
+## NOTE: btn[1] and btn[2] are now individual pins in top module, not a bus.
 
 ## ---------------- 7-Segment Display 0 (ones digit) ----------------
 set_property -dict {PACKAGE_PIN D5  IOSTANDARD LVCMOS33} [get_ports {D0_AN[0]}];
