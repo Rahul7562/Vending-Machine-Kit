@@ -1,0 +1,7 @@
+*.vvp
+*.vcd
+*.bit
+*.jou
+*.log
+*.pb
+.Xil/
