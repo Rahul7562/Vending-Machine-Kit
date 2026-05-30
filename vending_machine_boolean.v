@@ -65,7 +65,7 @@ module vending_machine_boolean (
         end
     end
     
-    assign led = led_rgb;
+    assign led = led_reg;
 
     // RGB Mapping (Active High)
     // IDLE: Blue (001), DISPENSE/CHANGE: Green (010), CHECK: Red (100)
