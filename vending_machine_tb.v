@@ -2,278 +2,168 @@
 
 module vending_machine_tb;
 
-    reg clk;
-    reg rst;
+    reg clk, rst;
     reg coin_5, coin_10, coin_20;
-    reg sel_water, sel_coffee, sel_softdrink, sel_chips;
-    reg cancel;
-
-    wire disp_water, disp_coffee, disp_softdrink, disp_chips;
+    reg sel_water, sel_coffee, sel_softdrink, sel_chips, cancel;
+    wire dw, dc, ds, dch;
     wire [7:0] change;
     wire [7:0] balance;
     wire cancel_out;
     wire [2:0] state_out;
 
-    vending_machine_core uut (
+    vending_machine_core uut(
         .clk(clk), .rst(rst),
         .coin_5(coin_5), .coin_10(coin_10), .coin_20(coin_20),
         .select_water(sel_water), .select_coffee(sel_coffee),
         .select_softdrink(sel_softdrink), .select_chips(sel_chips),
         .cancel(cancel),
-        .dispense_water(disp_water), .dispense_coffee(disp_coffee),
-        .dispense_softdrink(disp_softdrink), .dispense_chips(disp_chips),
+        .dispense_water(dw), .dispense_coffee(dc),
+        .dispense_softdrink(ds), .dispense_chips(dch),
         .change_out(change), .current_balance(balance),
         .cancel_out(cancel_out), .state_out(state_out)
     );
 
     always #5 clk = ~clk;
 
-    // REAL-TIME MONITOR
-    reg [2:0] prev_state;
-    always @(posedge clk) begin
-        if (state_out != prev_state) begin
-            case (state_out)
-                3'd0: $display("[T=%0t] >> IDLE       bal=%0d chg=%0d", $time, balance, change);
-                3'd1: $display("[T=%0t] >> CHECK      bal=%0d price=%0d",
-                               $time, balance, uut.price_to_check);
-                3'd2: $display("[T=%0t] >> DISPENSE   bal=%0d prod=%4b",
-                               $time, balance, uut.product_selected);
-                3'd3: $display("[T=%0t] >> RET_CHANGE bal=%0d chg=%0d cancel=%b",
-                               $time, balance, change, cancel_out);
-            endcase
-        end
-        if (disp_water)     $display("[T=%0t] ** WATER dispensed", $time);
-        if (disp_coffee)    $display("[T=%0t] ** COFFEE dispensed", $time);
-        if (disp_softdrink) $display("[T=%0t] ** SOFTDRINK dispensed", $time);
-        if (disp_chips)     $display("[T=%0t] ** CHIPS dispensed", $time);
-        prev_state <= state_out;
-    end
-
-    // STICKY CAPTURE
-    reg cap_w, cap_c, cap_s, cap_ch;
-    reg [7:0] cap_change;
-    reg cap_cancel;
+    // STICKY CAPTURES
+    reg got_w, got_c, got_s, got_ch;
+    reg [7:0] max_chg;
+    reg got_cancel;
 
     always @(posedge clk) begin
-        if (disp_water)     cap_w <= 1;
-        if (disp_coffee)    cap_c <= 1;
-        if (disp_softdrink) cap_s <= 1;
-        if (disp_chips)     cap_ch <= 1;
-        if (change > 0)     cap_change <= change;
-        if (cancel_out)     cap_cancel <= 1;
+        if (dw)          got_w <= 1;
+        if (dc)          got_c <= 1;
+        if (ds)          got_s <= 1;
+        if (dch)         got_ch <= 1;
+        if (change > max_chg) max_chg <= change;
+        if (cancel_out)  got_cancel <= 1;
     end
 
-    task clear_caps;
-        begin
-            cap_w = 0; cap_c = 0; cap_s = 0; cap_ch = 0;
-            cap_change = 0; cap_cancel = 0;
-        end
+    task caps_off;
+        begin got_w=0; got_c=0; got_s=0; got_ch=0; max_chg=0; got_cancel=0; end
     endtask
 
-    // PULSE TASKS (one per signal — works around Icarus Verilog case+NBA scheduling bug)
-    task pulse_coin5;
-        begin
-            @(negedge clk); coin_5 = 1;
-            @(negedge clk); coin_5 = 0;
-            #1;
-        end
-    endtask
+    // PULSE TASKS (split per signal for Icarus NBA compat)
+    task p5;  begin @(negedge clk); coin_5=1;  @(negedge clk); coin_5=0;  #1; end endtask
+    task p10; begin @(negedge clk); coin_10=1; @(negedge clk); coin_10=0; #1; end endtask
+    task p20; begin @(negedge clk); coin_20=1; @(negedge clk); coin_20=0; #1; end endtask
+    task pw;  begin @(negedge clk); sel_water=1;     @(negedge clk); sel_water=0;     #1; end endtask
+    task pcf; begin @(negedge clk); sel_coffee=1;    @(negedge clk); sel_coffee=0;    #1; end endtask
+    task psd; begin @(negedge clk); sel_softdrink=1; @(negedge clk); sel_softdrink=0; #1; end endtask
+    task pch; begin @(negedge clk); sel_chips=1;     @(negedge clk); sel_chips=0;     #1; end endtask
+    task pcan;begin @(negedge clk); cancel=1;        @(negedge clk); cancel=0;        #1; end endtask
 
-    task pulse_coin10;
-        begin
-            @(negedge clk); coin_10 = 1;
-            @(negedge clk); coin_10 = 0;
-            #1;
-        end
-    endtask
-
-    task pulse_coin20;
-        begin
-            @(negedge clk); coin_20 = 1;
-            @(negedge clk); coin_20 = 0;
-            #1;
-        end
-    endtask
-
-    task pulse_water;
-        begin
-            @(negedge clk); sel_water = 1;
-            @(negedge clk); sel_water = 0;
-            #1;
-        end
-    endtask
-
-    task pulse_coffee;
-        begin
-            @(negedge clk); sel_coffee = 1;
-            @(negedge clk); sel_coffee = 0;
-            #1;
-        end
-    endtask
-
-    task pulse_softdrink;
-        begin
-            @(negedge clk); sel_softdrink = 1;
-            @(negedge clk); sel_softdrink = 0;
-            #1;
-        end
-    endtask
-
-    task pulse_chips;
-        begin
-            @(negedge clk); sel_chips = 1;
-            @(negedge clk); sel_chips = 0;
-            #1;
-        end
-    endtask
-
-    task pulse_cancel;
-        begin
-            @(negedge clk); cancel = 1;
-            @(negedge clk); cancel = 0;
-            #1;
-        end
-    endtask
-
-    task wait_idle;
-        input integer cycles;
-        begin
-            repeat(cycles) @(posedge clk);
-        end
+    task wait_n;
+        input integer n;
+        begin repeat(n) @(posedge clk); end
     endtask
 
     integer pass_count;
-    integer total;
 
     initial begin
         $dumpfile("vending_machine.vcd");
         $dumpvars(0, vending_machine_tb);
 
-        clk = 0; rst = 1;
-        coin_5 = 0; coin_10 = 0; coin_20 = 0;
-        sel_water = 0; sel_coffee = 0; sel_softdrink = 0; sel_chips = 0; cancel = 0;
-        clear_caps();
-        prev_state = 3'd0;
+        clk=0; rst=1; coin_5=0; coin_10=0; coin_20=0;
+        sel_water=0; sel_coffee=0; sel_softdrink=0; sel_chips=0; cancel=0;
+        caps_off();
 
         repeat(4) @(posedge clk);
-        @(negedge clk); rst = 0;
+        @(negedge clk); rst=0;
         repeat(4) @(posedge clk);
 
-        $display("");
-        $display("============================================================");
-        $display("  VENDING MACHINE TESTBENCH v2.2");
-        $display("============================================================");
         pass_count = 0;
-        total = 0;
 
-        $display("--- TEST 1: Insert 10, Buy Water ---");
-        pulse_coin10; pulse_water; wait_idle(15);
-        total = total + 1;
-        if (cap_w && cap_change == 0 && balance == 0)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_w=%b change=%0d bal=%0d", cap_w, cap_change, balance);
-        clear_caps();
+        // T1: Insert 10, Buy Water (exact)
+        $display("T1:  Insert 10 | Buy Water");
+        p10; pw; wait_n(12);
+        if (got_w && max_chg==0 && balance==0) begin $display("      PASS"); pass_count=pass_count+1; end
+        else $display("      FAIL  w=%b chg=%0d bal=%0d", got_w, max_chg, balance);
+        caps_off();
 
-        $display("--- TEST 2: Insert 5+10, Buy Coffee ---");
-        pulse_coin5; pulse_coin10; pulse_coffee; wait_idle(15);
-        total = total + 1;
-        if (cap_c && cap_change == 0 && balance == 0)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_c=%b change=%0d bal=%0d", cap_c, cap_change, balance);
-        clear_caps();
+        // T2: Insert 5+10, Buy Coffee (exact)
+        $display("T2:  Insert 5+10 | Buy Coffee");
+        p5; p10; pcf; wait_n(12);
+        if (got_c && max_chg==0 && balance==0) begin $display("      PASS"); pass_count=pass_count+1; end
+        else $display("      FAIL  c=%b chg=%0d bal=%0d", got_c, max_chg, balance);
+        caps_off();
 
-        $display("--- TEST 3: Insert 20, Buy Soft Drink ---");
-        pulse_coin20; pulse_softdrink; wait_idle(15);
-        total = total + 1;
-        if (cap_s && cap_change == 0)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_s=%b change=%0d", cap_s, cap_change);
-        clear_caps();
+        // T3: Insert 20, Buy Soft Drink (exact)
+        $display("T3:  Insert 20 | Buy Soft Drink");
+        p20; psd; wait_n(12);
+        if (got_s && max_chg==0) begin $display("      PASS"); pass_count=pass_count+1; end
+        else $display("      FAIL  s=%b chg=%0d", got_s, max_chg);
+        caps_off();
 
-        $display("--- TEST 4: Insert 20+5, Buy Chips ---");
-        pulse_coin20; pulse_coin5; pulse_chips; wait_idle(15);
-        total = total + 1;
-        if (cap_ch && cap_change == 0)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_ch=%b change=%0d", cap_ch, cap_change);
-        clear_caps();
+        // T4: Insert 20+5, Buy Chips (exact)
+        $display("T4:  Insert 20+5 | Buy Chips");
+        p20; p5; pch; wait_n(12);
+        if (got_ch && max_chg==0) begin $display("      PASS"); pass_count=pass_count+1; end
+        else $display("      FAIL  ch=%b chg=%0d", got_ch, max_chg);
+        caps_off();
 
-        $display("--- TEST 5: Insufficient 10<15 for Coffee ---");
-        pulse_coin10; pulse_coffee; wait_idle(15);
-        total = total + 1;
-        if (!cap_c && balance == 10)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_c=%b bal=%0d", cap_c, balance);
-        pulse_cancel; wait_idle(10);
-        clear_caps();
+        // T5: Insufficient 10<15 for Coffee
+        $display("T5:  Insert 10 | Buy Coffee  (REJECT 10<15)");
+        p10; pcf; wait_n(12);
+        if (!got_c && balance==10) begin $display("      PASS  (rejected, bal=%0d)", balance); pass_count=pass_count+1; end
+        else $display("      FAIL  c=%b bal=%0d", got_c, balance);
+        pcan; wait_n(8); caps_off();
 
-        $display("--- TEST 6: Insufficient 20<25 for Chips ---");
-        pulse_coin20; pulse_chips; wait_idle(15);
-        total = total + 1;
-        if (!cap_ch && balance == 20)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_ch=%b bal=%0d", cap_ch, balance);
-        pulse_cancel; wait_idle(10);
-        clear_caps();
+        // T6: Insufficient 20<25 for Chips
+        $display("T6:  Insert 20 | Buy Chips  (REJECT 20<25)");
+        p20; pch; wait_n(12);
+        if (!got_ch && balance==20) begin $display("      PASS  (rejected, bal=%0d)", balance); pass_count=pass_count+1; end
+        else $display("      FAIL  ch=%b bal=%0d", got_ch, balance);
+        pcan; wait_n(8); caps_off();
 
-        $display("--- TEST 7: Overpay 20, Buy Water (change=10) ---");
-        pulse_coin20; pulse_water; wait_idle(15);
-        total = total + 1;
-        if (cap_w && cap_change == 10 && balance == 0)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_w=%b change=%0d bal=%0d", cap_w, cap_change, balance);
-        clear_caps();
+        // T7: Overpay - Insert 20, Buy Water (change=10)
+        $display("T7:  Insert 20 | Buy Water  (CHANGE=10)");
+        p20; pw; wait_n(12);
+        if (got_w && max_chg==10 && balance==0) begin $display("      PASS  change=%0d", max_chg); pass_count=pass_count+1; end
+        else $display("      FAIL  w=%b chg=%0d bal=%0d", got_w, max_chg, balance);
+        caps_off();
 
-        $display("--- TEST 8: 5x4=20, Buy Soft Drink ---");
-        pulse_coin5; pulse_coin5; pulse_coin5; pulse_coin5;
-        wait_idle(4); pulse_softdrink; wait_idle(15);
-        total = total + 1;
-        if (cap_s && balance == 0)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: cap_s=%b bal=%0d", cap_s, balance);
-        clear_caps();
+        // T8: 5x4=20, Buy Soft Drink
+        $display("T8:  Insert 5x4=20 | Buy Soft Drink");
+        p5; p5; p5; p5; wait_n(4); psd; wait_n(12);
+        if (got_s && balance==0) begin $display("      PASS"); pass_count=pass_count+1; end
+        else $display("      FAIL  s=%b bal=%0d", got_s, balance);
+        caps_off();
 
-        $display("--- TEST 9: Reset during operation ---");
-        pulse_coin10; wait_idle(4);
-        @(negedge clk); rst = 1;
+        // T9: Reset mid-transaction
+        $display("T9:  Insert 10 | RESET");
+        p10; wait_n(4);
+        @(negedge clk); rst=1;
         repeat(4) @(posedge clk);
-        @(negedge clk); rst = 0;
+        @(negedge clk); rst=0;
         repeat(4) @(posedge clk);
-        total = total + 1;
-        if (balance == 0)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: bal=%0d", balance);
-        clear_caps();
+        if (balance==0) begin $display("      PASS  (cleared)"); pass_count=pass_count+1; end
+        else $display("      FAIL  bal=%0d", balance);
+        caps_off();
 
-        $display("--- TEST 10: Cancel returns 15 ---");
-        pulse_coin5; pulse_coin10; wait_idle(4);
-        pulse_cancel; wait_idle(15);
-        total = total + 1;
-        if (cap_change == 15 && cap_cancel)
-            begin $display("PASS"); pass_count = pass_count + 1; end
-        else $display("FAIL: change=%0d cancel=%b", cap_change, cap_cancel);
-        clear_caps();
+        // T10: Cancel returns change (5+10=15)
+        $display("T10: Insert 5+10 | CANCEL (change=15)");
+        p5; p10; wait_n(4); pcan; wait_n(12);
+        if (max_chg==15 && got_cancel) begin $display("      PASS  change=%0d", max_chg); pass_count=pass_count+1; end
+        else $display("      FAIL  chg=%0d cancel=%b", max_chg, got_cancel);
+        caps_off();
 
-        $display("--- TEST 11: Back-to-back purchases ---");
-        pulse_coin20; pulse_coin20; wait_idle(4);
-        pulse_water; wait_idle(15);
-        total = total + 1;
-        if (cap_w && cap_change == 30)
-            begin $display("PASS(a)"); pass_count = pass_count + 1; end
-        else $display("FAIL(a): cap_w=%b change=%0d bal=%0d", cap_w, cap_change, balance);
-        clear_caps();
-        pulse_coin20; pulse_coin5; wait_idle(4);
-        pulse_chips; wait_idle(15);
-        total = total + 1;
-        if (cap_ch && cap_change == 0)
-            begin $display("PASS(b)"); pass_count = pass_count + 1; end
-        else $display("FAIL(b): cap_ch=%b change=%0d", cap_ch, cap_change);
-        clear_caps();
+        // T11: Back-to-back
+        $display("T11: Insert 40 | Buy Water(10) | x | Buy Chips(25)");
+        p20; p20; wait_n(4); pw; wait_n(12);
+        if (got_w && max_chg==30) begin $display("      PASS(a)  water change=%0d", max_chg); pass_count=pass_count+1; end
+        else $display("      FAIL(a)  w=%b chg=%0d", got_w, max_chg);
+        caps_off();
+        p20; p5; wait_n(4); pch; wait_n(12);
+        if (got_ch && max_chg==0) begin $display("      PASS(b)  chips"); pass_count=pass_count+1; end
+        else $display("      FAIL(b)  ch=%b", got_ch);
+        caps_off();
 
         $display("");
-        $display("============================================================");
-        $display("  RESULTS: %0d / %0d PASSED", pass_count, total);
-        $display("============================================================");
+        $display("==================================");
+        $display("  RESULTS: %0d / 12 PASSED", pass_count);
+        $display("==================================");
+        $display("");
         $finish;
     end
 
