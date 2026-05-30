@@ -2,11 +2,14 @@
 
 module vending_machine_boolean (
     input  wire clk,
-    input  wire [6:0] sw,     // Switches for coins and selections
-    input  wire [3:0] btn,    // Buttons (BTN0=rst, BTN3=cancel; BTN1,BTN2=unused)
-    output wire [3:0] led,    // LEDs for dispense indicators
-    output wire [7:0] seg,    // Seven Segment Data (active low, bit 7=DP)
-    output wire [3:0] an      // Seven Segment Anode (active low)
+    input  wire [6:0] sw,       // Switches: sw[0..2]=coins, sw[3..6]=product select
+    input  wire [3:0] btn,      // Buttons: btn[0]=rst(btn[1..2]=unused), btn[3]=cancel
+    output wire [3:0] led,      // LEDs: dispense indicators
+    output wire [2:0] led_rgb,  // RGB LED: FSM state indicator (active HIGH)
+    output reg  [7:0] D0_SEG,   // 7-seg display 0 segments (active low, bit 7=DP)
+    output reg  [3:0] D0_AN,    // 7-seg display 0 anodes (active low)
+    output reg  [7:0] D1_SEG,   // 7-seg display 1 segments (active low, bit 7=DP)
+    output reg  [3:0] D1_AN     // 7-seg display 1 anodes (active low)
 );
 
     // Boolean board: buttons active LOW (pressed=0 due to pull-up)
@@ -58,43 +61,51 @@ module vending_machine_boolean (
     end
     assign led = led_reg;
 
-    // 7-Segment Display (Multiplexed) — shows current_balance
+    // RGB LED mapping (active HIGH — drives RGB0 on Boolean board)
+    // IDLE: Blue, DISPENSE/CHANGE: Green, CHECK: Red
+    assign led_rgb[0] = (state_out == 3'd0);                    // Blue
+    assign led_rgb[1] = (state_out == 3'd2 || state_out == 3'd3); // Green
+    assign led_rgb[2] = (state_out == 3'd1);                    // Red
+
+    // 7-Segment Display (Multiplexed across D0 and D1)
+    // Shows current_balance: D0=ones digit, D1=tens digit
     reg [15:0] clk_div;
     always @(posedge clk) clk_div <= clk_div + 1;
 
-    wire [3:0] digit0 = current_balance % 10;
-    wire [3:0] digit1 = (current_balance / 10) % 10;
+    wire [3:0] digit0 = current_balance % 10;         // ones
+    wire [3:0] digit1 = (current_balance / 10) % 10;  // tens
 
-    reg [3:0] current_digit;
-    reg [3:0] an_reg;
-
-    always @(*) begin
-        case (clk_div[15])
-            1'b0: begin current_digit = digit0; an_reg = 4'b1110; end
-            1'b1: begin current_digit = digit1; an_reg = 4'b1101; end
+    // Segment lookup (active low, common anode): bit 7=DP, bits 6:0=a..g
+    function [7:0] seg_lookup;
+        input [3:0] digit;
+        case (digit)
+            4'd0: seg_lookup = 8'b10000001;
+            4'd1: seg_lookup = 8'b11110011;
+            4'd2: seg_lookup = 8'b01001001;
+            4'd3: seg_lookup = 8'b01100001;
+            4'd4: seg_lookup = 8'b00110011;
+            4'd5: seg_lookup = 8'b00100101;
+            4'd6: seg_lookup = 8'b00000101;
+            4'd7: seg_lookup = 8'b11110001;
+            4'd8: seg_lookup = 8'b00000001;
+            4'd9: seg_lookup = 8'b00100001;
+            default: seg_lookup = 8'b11111111;
         endcase
-    end
+    endfunction
 
-    assign an = an_reg;
-
-    // 7-segment encoding (active low, common anode)
-    reg [6:0] seg_reg;
+    // Alternate between D0 (ones) and D1 (tens) at ~1.5kHz refresh
     always @(*) begin
-        case (current_digit)
-            4'd0: seg_reg = 7'b1000000;
-            4'd1: seg_reg = 7'b1111001;
-            4'd2: seg_reg = 7'b0100100;
-            4'd3: seg_reg = 7'b0110000;
-            4'd4: seg_reg = 7'b0011001;
-            4'd5: seg_reg = 7'b0010010;
-            4'd6: seg_reg = 7'b0000010;
-            4'd7: seg_reg = 7'b1111000;
-            4'd8: seg_reg = 7'b0000000;
-            4'd9: seg_reg = 7'b0010000;
-            default: seg_reg = 7'b1111111;
-        endcase
+        if (clk_div[15] == 1'b0) begin
+            D0_SEG = seg_lookup(digit0);
+            D0_AN  = 4'b1110;
+            D1_SEG = 8'b11111111;
+            D1_AN  = 4'b1111;
+        end else begin
+            D0_SEG = 8'b11111111;
+            D0_AN  = 4'b1111;
+            D1_SEG = seg_lookup(digit1);
+            D1_AN  = 4'b1110;
+        end
     end
-
-    assign seg = {1'b1, seg_reg}; // DP off (bit 7 = 1), segments active low
 
 endmodule
